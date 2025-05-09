@@ -46,6 +46,64 @@ router.post('/register', async (req, res) => {
     }
 });
 
+// Register new admin
+router.post('/register-admin', async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+        const adminCount = await User.countDocuments({ role: 'admin' });
+
+        // If there is at least one admin, require requester to be an authenticated admin
+        if (adminCount > 0) {
+            const token = req.header('Authorization')?.replace('Bearer ', '');
+            if (!token) return res.status(401).json({ error: 'Authorization required' });
+            let decoded;
+            try {
+                decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+            } catch (err) {
+                return res.status(401).json({ error: 'Invalid token' });
+            }
+            const requester = await User.findById(decoded.userId);
+            if (!requester || requester.role !== 'admin') {
+                return res.status(403).json({ error: 'Only admins can register new admins' });
+            }
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+
+        // Create new admin
+        const user = new User({
+            username,
+            email,
+            password,
+            role: 'admin'
+        });
+        await user.save();
+
+        // Generate token
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '24h' }
+        );
+
+        res.status(201).json({
+            token,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Login user
 router.post('/login', async (req, res) => {
     try {

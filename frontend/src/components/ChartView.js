@@ -1,50 +1,25 @@
 import React, { useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bar, Line, Pie } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
+import { Chart, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend } from 'chart.js';
+import html2canvas from 'html2canvas';
 import Navbar from './Navbar';
-import './ChartView.css';
+import './UserDashboard.css';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+Chart.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, ArcElement);
 
 const ChartView = () => {
-  const location = useLocation();
+  const { state } = useLocation();
   const navigate = useNavigate();
   const chartRef = useRef();
 
-  const { sheetName, xAxis, yAxis, chartType, data } = location.state || {};
-
-  if (!data || !xAxis || !yAxis) {
-    return (
-      <div style={{ padding: 32, color: 'red' }}>
-        No chart data found! Please go back and generate a chart.
-        <button onClick={() => navigate('/data-mapping')} style={{ marginLeft: 16 }}>
-          Back to Mapping
-        </button>
-      </div>
-    );
+  if (!state) {
+    navigate('/data-mapping');
+    return null;
   }
+
+  const { data, xAxis, yAxis, chartType, sheetName } = state;
+  const fileName = sheetName;
 
   // Prepare chart data
   const labels = data.map(row => row[xAxis]);
@@ -56,8 +31,8 @@ const ChartView = () => {
       {
         label: yAxis,
         data: values,
-        backgroundColor: 'rgba(99, 102, 241, 0.5)',
-        borderColor: 'rgba(99, 102, 241, 1)',
+        backgroundColor: 'rgba(56, 189, 248, 0.5)',
+        borderColor: 'rgba(56, 189, 248, 1)',
         borderWidth: 1,
       },
     ],
@@ -66,7 +41,7 @@ const ChartView = () => {
   const chartOptions = {
     responsive: true,
     plugins: {
-      legend: { display: chartType !== 'bar' ? true : false },
+      legend: { display: chartType !== 'pie', position: 'top' },
       title: { display: false },
     },
     scales: chartType === 'pie' ? {} : {
@@ -76,78 +51,72 @@ const ChartView = () => {
   };
 
   // Data summary
-  const count = values.length;
-  const avg = (values.reduce((a, b) => a + b, 0) / count).toFixed(2);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+  const dataPoints = values.length;
+  const average = (values.reduce((a, b) => a + b, 0) / dataPoints).toFixed(2);
+  const maxValue = Math.max(...values).toFixed(2);
 
-  // Download chart as PNG/JPEG
-  const handleDownload = async (type) => {
-    if (!chartRef.current) return;
-    const canvas = chartRef.current.querySelector('canvas');
-    if (!canvas) return;
-    const url = canvas.toDataURL(type === 'jpeg' ? 'image/jpeg' : 'image/png');
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chart.${type}`;
-    link.click();
+  // Download chart as PNG
+  const handleDownload = async () => {
+    const chartElement = chartRef.current;
+    if (!chartElement) return;
+    await html2canvas(chartElement).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'chart.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
   };
 
   return (
     <>
       <Navbar />
-      <div className="chartview-container">
-        <div className="chartview-header">
+      <div style={{ padding: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div className="chartview-title">Chart View</div>
-            <div className="chartview-subtitle">{sheetName} - Visualization</div>
+            <h2 style={{ marginBottom: 0 }}>Chart View</h2>
+            <div style={{ color: '#6c757d', fontSize: 16 }}>{fileName} - Visualization</div>
           </div>
           <div>
-            <button className="chartview-back" onClick={() => navigate('/data-mapping')}>
-              &larr; Back to Mapping
-            </button>
-            <button className="chartview-history" style={{ marginLeft: 12 }}>
-              View History
-            </button>
+            <button className="upload-btn-full" style={{ marginRight: 12 }} onClick={() => navigate(-1)}>&larr; Back to Mapping</button>
+            <button className="upload-btn-full" style={{ background: '#e2e8f0', color: '#222' }}>View History</button>
           </div>
         </div>
-        <div className="chartview-card">
-          <div className="chartview-card-title">{chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart</div>
-          <div className="chartview-card-desc">{xAxis} vs. {yAxis}</div>
-          <div ref={chartRef} className="chartview-canvas">
+        <div style={{ marginTop: 24, background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px #e5e7eb' }}>
+          <h3 style={{ marginBottom: 0 }}>Bar Chart</h3>
+          <div style={{ color: '#6c757d', marginBottom: 12 }}>{xAxis} vs. {yAxis}</div>
+          <div ref={chartRef} style={{ background: '#fff', padding: 24, borderRadius: 8, marginBottom: 16 }}>
             {chartType === 'bar' && <Bar data={chartData} options={chartOptions} />}
             {chartType === 'line' && <Line data={chartData} options={chartOptions} />}
             {chartType === 'pie' && <Pie data={{
               labels,
-              datasets: [{ ...chartData.datasets[0], backgroundColor: [
-                '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff', '#f1f5f9'
-              ] }]
+              datasets: [{
+                data: values,
+                backgroundColor: [
+                  '#38bdf8', '#818cf8', '#f472b6', '#facc15', '#34d399', '#f87171', '#a3e635', '#fbbf24', '#60a5fa', '#f472b6', '#fcd34d', '#c084fc', '#f87171', '#fbbf24', '#818cf8'
+                ]
+              }]
             }} options={chartOptions} />}
           </div>
-          <div className="chartview-download-row">
-            <button className="chartview-download-btn" onClick={() => handleDownload('png')}>PNG</button>
-            <button className="chartview-download-btn" onClick={() => handleDownload('jpeg')}>JPEG</button>
-          </div>
+          <button className="upload-btn-full" onClick={handleDownload} style={{ width: 140, marginRight: 8 }}>
+            <span role="img" aria-label="download">⬇️</span> Download PNG
+          </button>
+          <button className="upload-btn-full" style={{ width: 100, background: '#e2e8f0', color: '#222' }} disabled>PDF</button>
         </div>
-        <div className="chartview-summary">
-          <div className="chartview-summary-title">Data Summary</div>
-          <div className="chartview-summary-desc">Basic statistics about your data</div>
-          <div className="chartview-summary-row">
-            <div className="chartview-summary-card">
-              <div className="chartview-summary-label">Data Points</div>
-              <div className="chartview-summary-value">{count}</div>
+        <div style={{ marginTop: 32, background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px #e5e7eb' }}>
+          <h3>Data Summary</h3>
+          <div style={{ color: '#6c757d', marginBottom: 16 }}>Basic statistics about your data</div>
+          <div style={{ display: 'flex', gap: 32 }}>
+            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 18, minWidth: 120 }}>
+              <div style={{ color: '#6c757d', fontSize: 14 }}>Data Points</div>
+              <div style={{ fontWeight: 700, fontSize: 28 }}>{dataPoints}</div>
             </div>
-            <div className="chartview-summary-card">
-              <div className="chartview-summary-label">Average</div>
-              <div className="chartview-summary-value">{avg}</div>
+            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 18, minWidth: 120 }}>
+              <div style={{ color: '#6c757d', fontSize: 14 }}>Average</div>
+              <div style={{ fontWeight: 700, fontSize: 28 }}>{average}</div>
             </div>
-            <div className="chartview-summary-card">
-              <div className="chartview-summary-label">Max Value</div>
-              <div className="chartview-summary-value">{max}</div>
-            </div>
-            <div className="chartview-summary-card">
-              <div className="chartview-summary-label">Min Value</div>
-              <div className="chartview-summary-value">{min}</div>
+            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 18, minWidth: 120 }}>
+              <div style={{ color: '#6c757d', fontSize: 14 }}>Max Value</div>
+              <div style={{ fontWeight: 700, fontSize: 28 }}>{maxValue}</div>
             </div>
           </div>
         </div>

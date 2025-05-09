@@ -44,4 +44,39 @@ router.post('/upload', auth, async (req, res) => {
     }
 });
 
+// Create a new user (admin only)
+router.post('/', auth, isAdmin, async (req, res) => {
+    try {
+        const { username, email, password, role = 'user' } = req.body;
+        // Check if user already exists
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+        const user = new User({ username, email, password, role });
+        await user.save();
+        res.status(201).json({
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Delete a user (admin only)
+router.delete('/:userId', auth, isAdmin, async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ message: 'User deleted' });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router; 

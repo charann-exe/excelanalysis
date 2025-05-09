@@ -8,6 +8,8 @@ const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userHistory, setUserHistory] = useState([]);
   const [error, setError] = useState('');
+  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user' });
+  const [formLoading, setFormLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,6 +49,45 @@ const AdminDashboard = () => {
     navigate('/login');
   };
 
+  const handleFormChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setError('');
+    try {
+      await axios.post('http://localhost:5000/api/users', form, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setForm({ username: '', email: '', password: '', role: 'user' });
+      fetchUsers();
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to add user');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    setError('');
+    try {
+      await axios.delete(`http://localhost:5000/api/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (selectedUser === userId) setSelectedUser(null);
+      fetchUsers();
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
@@ -61,6 +102,47 @@ const AdminDashboard = () => {
       <div className="dashboard-content">
         <div className="users-section">
           <h3>Users</h3>
+          <form onSubmit={handleAddUser} style={{ marginBottom: 20 }}>
+            <input
+              type="text"
+              name="username"
+              placeholder="Username"
+              value={form.username}
+              onChange={handleFormChange}
+              required
+              style={{ marginRight: 8 }}
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleFormChange}
+              required
+              style={{ marginRight: 8 }}
+            />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleFormChange}
+              required
+              style={{ marginRight: 8 }}
+            />
+            <select
+              name="role"
+              value={form.role}
+              onChange={handleFormChange}
+              style={{ marginRight: 8 }}
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button type="submit" disabled={formLoading}>
+              {formLoading ? 'Adding...' : 'Add User'}
+            </button>
+          </form>
           <div className="users-list">
             {users.map((user) => (
               <div
@@ -71,6 +153,13 @@ const AdminDashboard = () => {
                 <p>Username: {user.username}</p>
                 <p>Email: {user.email}</p>
                 <p>Role: {user.role}</p>
+                <button
+                  style={{ marginTop: 8, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer' }}
+                  onClick={e => { e.stopPropagation(); handleDeleteUser(user._id); }}
+                  disabled={formLoading}
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>

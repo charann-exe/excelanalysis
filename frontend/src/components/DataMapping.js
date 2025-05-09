@@ -33,7 +33,7 @@ const DataMapping = () => {
       xAxis,
       yAxis,
       chartType,
-      data: excelData,
+      data: excelData.slice(0, 15),
     };
     navigate('/chart-view', { state: chartConfig });
   };

@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
+const { processExcelFile, ExcelProcessingError } = require('../utils/excelProcessor');
 
 // Configure multer for Excel file uploads
 const storage = multer.diskStorage({
@@ -48,33 +48,26 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        // Parse Excel file
-        const workbook = XLSX.readFile(req.file.path);
-        const sheetNames = workbook.SheetNames;
-        const firstSheetName = sheetNames[0];
-        const firstSheet = workbook.Sheets[firstSheetName];
-        const data = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-        // Prepare metadata
-        const metadata = {
-            user: req.user._id,
-            filename: req.file.originalname,
-            storedFilename: req.file.filename,
-            uploadDate: new Date(),
-            sheetNames,
-            rows: data.length,
-            columns: data[0] ? data[0].length : 0
+        // Process Excel file with options
+        const options = {
+            trimStrings: true,
+            convertNumbers: true,
+            removeEmptyStrings: true
         };
+
+        const processedData = await processExcelFile(req.file.path, options);
 
         // Store in MongoDB
         const user = await User.findById(req.user._id);
         user.uploadHistory.push({
             fileName: req.file.filename,
             originalName: req.file.originalname,
-            uploadDate: metadata.uploadDate,
+            uploadDate: new Date(),
             fileSize: req.file.size,
-            sheets: sheetNames.map(name => ({ name })),
-            data: data,
+            sheets: processedData.headers,
+            data: processedData.data,
+            totalRows: processedData.totalRows,
+            totalColumns: processedData.totalColumns,
             status: 'success'
         });
         await user.save();
@@ -84,15 +77,25 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
 
         res.status(200).json({
             message: 'File uploaded and processed successfully',
-            metadata,
-            rows: metadata.rows,
-            columns: metadata.columns
+            metadata: {
+                user: req.user._id,
+                filename: req.file.originalname,
+                uploadDate: new Date(),
+                totalRows: processedData.totalRows,
+                totalColumns: processedData.totalColumns
+            },
+            data: processedData
         });
 
     } catch (error) {
         if (req.file && req.file.path) {
             fs.unlinkSync(req.file.path);
         }
+        
+        if (error instanceof ExcelProcessingError) {
+            return res.status(400).json({ error: error.message });
+        }
+        
         res.status(500).json({ error: error.message || 'Error processing file' });
     }
 });
